@@ -17,6 +17,12 @@ def help_pannel(_, is_sudo, START: Union[bool, int] = None):
     upl = [
             [
                 InlineKeyboardButton(
+                    text=_["H_B_10"],
+                    callback_data="help_callback hb10",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
                     text=_["H_B_1"],
                     callback_data="help_callback hb1",
                 ),
