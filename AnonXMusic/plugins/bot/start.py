@@ -193,7 +193,7 @@ async def start_pm(client, message: Message, _):
         out = private_panel(_)
         served_chats = len(await get_served_chats())
         served_users = len(await get_served_users())
-        UP, CPU, RAM, DISK = await bot_sys_stats()
+        UP, CPU, RAM, DISK = await sys()
 
         # Progress bar function call karo
         await progress_bar(message)
