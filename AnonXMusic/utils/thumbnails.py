@@ -6,9 +6,11 @@ import shutil
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from unidecode import unidecode
-from youtubesearchpython.future import VideosSearch
+#from youtubesearchpython.future import VideosSearch
 from AnonXMusic import app
 from config import YOUTUBE_IMG_URL
+
+from youtubesearchpython import VideosSearch
 
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
