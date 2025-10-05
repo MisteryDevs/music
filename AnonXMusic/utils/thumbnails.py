@@ -6,11 +6,9 @@ import shutil
 import numpy as np
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from unidecode import unidecode
-#from youtubesearchpython.future import VideosSearch
+from youtubesearchpython import VideosSearch
 from AnonXMusic import app
 from config import YOUTUBE_IMG_URL
-
-from youtubesearchpython import VideosSearch
 
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -79,7 +77,7 @@ async def gen_thumb(videoid: str, user_id=None, input_image_path: str = None) ->
     is_live = False
     thumb_path = None
 
-    # Handle input image first
+    # Handle custom/local image first
     resolved_input_image = None
     if input_image_path and os.path.isfile(input_image_path):
         resolved_input_image = input_image_path
@@ -96,10 +94,10 @@ async def gen_thumb(videoid: str, user_id=None, input_image_path: str = None) ->
         except Exception:
             return YOUTUBE_IMG_URL
     else:
-        # Fetch YouTube data
+        # Fetch YouTube data (synchronous VideosSearch)
         try:
             results = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
-            results_data = await results.next()
+            results_data = results.result()
             data = results_data.get("result", [{}])[0]
             title = re.sub(r"\W+", " ", data.get("title", "Unsupported Title")).title()
             thumbnail = data.get("thumbnails", [{}])[0].get("url", YOUTUBE_IMG_URL)
@@ -117,6 +115,7 @@ async def gen_thumb(videoid: str, user_id=None, input_image_path: str = None) ->
         except Exception:
             thumb_path = None
 
+    # Open source image
     try:
         base = Image.open(thumb_path).convert("RGBA") if thumb_path else Image.new("RGBA", (1280, 720), "gray")
         base = base.resize((1280, 720))
@@ -176,7 +175,7 @@ async def gen_thumb(videoid: str, user_id=None, input_image_path: str = None) ->
         except Exception:
             pass
 
-    # Cleanup
+    # Cleanup temp thumb
     if resolved_input_image and os.path.exists(thumb_path):
         os.remove(thumb_path)
 
