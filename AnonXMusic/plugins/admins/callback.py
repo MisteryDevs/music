@@ -20,7 +20,7 @@ from AnonXMusic.utils.database import (
 from AnonXMusic.utils.decorators.language import languageCB
 from AnonXMusic.utils.formatters import seconds_to_min
 from AnonXMusic.utils.inline import close_markup, stream_markup, stream_markup_timer
-from AnonXMusic.utils.thumbnails import gen_thumb
+from AnonXMusic.utils.thumbnails import get_thumb
 from config import (
     BANNED_USERS,
     SOUNCLOUD_IMG_URL,
