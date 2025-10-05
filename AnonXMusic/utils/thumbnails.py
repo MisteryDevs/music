@@ -5,6 +5,7 @@ import aiohttp
 from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from youtubesearchpython.__future__ import VideosSearch
 from config import YOUTUBE_IMG_URL
+import shutil
 
 CACHE_DIR = "cache"
 os.makedirs(CACHE_DIR, exist_ok=True)
@@ -44,41 +45,89 @@ def trim_to_width(text, font, max_width):
             return cropped
     return ellipsis
 
-async def gen_thumb(videoid: str) -> str:
+async def gen_thumb(videoid: str, input_image_path: str = None) -> str:
+    """
+    Modified gen_thumb:
+    - If `input_image_path` is provided and exists (or if `videoid` itself is a valid image path),
+      that image will be used as the source image for the background/thumbnail.
+    - Otherwise falls back to YouTube thumbnail fetching as before.
+    Usage:
+      gen_thumb("/path/to/sent_image.jpg")
+      OR
+      gen_thumb("youtube_videoid")
+      OR
+      gen_thumb("youtube_videoid", "/path/to/sent_image.jpg")
+    """
     cache_path = os.path.join(CACHE_DIR, f"{videoid}_v4.png")
 
     # Always remove old thumbnail if exists
     if os.path.exists(cache_path):
         os.remove(cache_path)
 
-    results = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
-    try:
-        results_data = await results.next()
-        result_items = results_data.get("result", [])
-        if not result_items:
-            raise ValueError("No results found.")
-        data = result_items[0]
-        title = re.sub(r"\W+", " ", data.get("title", "Unsupported Title")).title()
-        thumbnail = data.get("thumbnails", [{}])[0].get("url", YOUTUBE_IMG_URL)
-        duration = data.get("duration")
-        views = data.get("viewCount", {}).get("short", "Unknown Views")
-    except Exception:
-        title, thumbnail, duration, views = "Unsupported Title", YOUTUBE_IMG_URL, None, "Unknown Views"
+    # Resolve input image preference:
+    resolved_input_image = None
+    # priority 1: explicit input_image_path
+    if input_image_path and os.path.isfile(input_image_path):
+        resolved_input_image = input_image_path
+    # priority 2: if videoid itself is a valid local image path
+    elif os.path.isfile(videoid):
+        resolved_input_image = videoid
 
-    is_live = not duration or str(duration).strip().lower() in {"", "live", "live now"}
-    duration_text = "Live" if is_live else duration or "Unknown Mins"
+    # If we have a resolved local image, use it directly (no download)
+    if resolved_input_image:
+        # copy to a temp thumb path so rest of pipeline can use it uniformly
+        thumb_path = os.path.join(CACHE_DIR, f"thumb_{os.path.basename(resolved_input_image)}")
+        try:
+            shutil.copyfile(resolved_input_image, thumb_path)
+        except Exception:
+            # fallback to default url if copy fails
+            return YOUTUBE_IMG_URL
 
-    thumb_path = os.path.join(CACHE_DIR, f"thumb{videoid}.png")
+        # set some defaults for metadata when using custom image
+        title = re.sub(r"\W+", " ", os.path.splitext(os.path.basename(resolved_input_image))[0]).title()
+        duration = None
+        views = "From Image"
+        is_live = False
+        duration_text = "Unknown Mins"
+    else:
+        # previous behaviour: fetch YouTube data
+        results = VideosSearch(f"https://www.youtube.com/watch?v={videoid}", limit=1)
+        try:
+            results_data = await results.next()
+            result_items = results_data.get("result", [])
+            if not result_items:
+                raise ValueError("No results found.")
+            data = result_items[0]
+            title = re.sub(r"\W+", " ", data.get("title", "Unsupported Title")).title()
+            thumbnail = data.get("thumbnails", [{}])[0].get("url", YOUTUBE_IMG_URL)
+            duration = data.get("duration")
+            views = data.get("viewCount", {}).get("short", "Unknown Views")
+        except Exception:
+            title, thumbnail, duration, views = "Unsupported Title", YOUTUBE_IMG_URL, None, "Unknown Views"
+
+        is_live = not duration or str(duration).strip().lower() in {"", "live", "live now"}
+        duration_text = "Live" if is_live else duration or "Unknown Mins"
+
+        thumb_path = os.path.join(CACHE_DIR, f"thumb{videoid}.png")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(thumbnail) as resp:
+                    if resp.status == 200:
+                        async with aiofiles.open(thumb_path, "wb") as f:
+                            await f.write(await resp.read())
+        except Exception:
+            return YOUTUBE_IMG_URL
+
+    # Open the source thumb and create the final 1280x720 base
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(thumbnail) as resp:
-                if resp.status == 200:
-                    async with aiofiles.open(thumb_path, "wb") as f:
-                        await f.write(await resp.read())
+        base = Image.open(thumb_path).convert("RGBA")
     except Exception:
         return YOUTUBE_IMG_URL
 
-    base = Image.open(thumb_path).resize((1280, 720)).convert("RGBA")
+    # If image is not 1280x720, resize it to fit canvas.
+    # NOTE: if you want to keep exact original pixels (no resize), remove/adjust this resize.
+    base = base.resize((1280, 720)).convert("RGBA")
+
     bg = ImageEnhance.Brightness(base.filter(ImageFilter.BoxBlur(10))).enhance(0.6)
 
     panel_area = bg.crop((PANEL_X, PANEL_Y, PANEL_X + PANEL_W, PANEL_Y + PANEL_H))
@@ -95,10 +144,17 @@ async def gen_thumb(videoid: str) -> str:
     except OSError:
         title_font = regular_font = ImageFont.load_default()
 
+    # For the small thumb preview inside the panel, use the same provided image
     thumb = base.resize((THUMB_W, THUMB_H))
     tmask = Image.new("L", thumb.size, 0)
     ImageDraw.Draw(tmask).rounded_rectangle((0, 0, THUMB_W, THUMB_H), 20, fill=255)
     bg.paste(thumb, (THUMB_X, THUMB_Y), tmask)
+
+    # If metadata (title/views) not set earlier (in resolved_input_image branch), set defaults
+    if 'title' not in locals():
+        title = "Unsupported Title"
+    if 'views' not in locals():
+        views = "Unknown Views"
 
     draw.text((TITLE_X, TITLE_Y), trim_to_width(title, title_font, MAX_TITLE_WIDTH), fill="black", font=title_font)
     draw.text((META_X, META_Y), f"YouTube | {views}", fill="black", font=regular_font)
@@ -108,8 +164,9 @@ async def gen_thumb(videoid: str) -> str:
     draw.ellipse([(BAR_X + BAR_RED_LEN - 7, BAR_Y - 7), (BAR_X + BAR_RED_LEN + 7, BAR_Y + 7)], fill="red")
 
     draw.text((BAR_X, BAR_Y + 15), "00:00", fill="black", font=regular_font)
-    end_text = "Live" if is_live else duration_text
-    draw.text((BAR_X + BAR_TOTAL_LEN - (90 if is_live else 60), BAR_Y + 15), end_text, fill="red" if is_live else "black", font=regular_font)
+    end_text = "Live" if (('is_live' in locals() and is_live)) else (duration_text if 'duration_text' in locals() else "Unknown")
+    draw.text((BAR_X + BAR_TOTAL_LEN - (90 if ('is_live' in locals() and is_live) else 60), BAR_Y + 15),
+              end_text, fill="red" if ('is_live' in locals() and is_live) else "black", font=regular_font)
 
     icons_path = "AnonXMusic/assets/play_icons.png"
     if os.path.isfile(icons_path):
@@ -118,8 +175,12 @@ async def gen_thumb(videoid: str) -> str:
         black_ic = Image.merge("RGBA", (r.point(lambda *_: 0), g.point(lambda *_: 0), b.point(lambda *_: 0), a))
         bg.paste(black_ic, (ICONS_X, ICONS_Y), black_ic)
 
+    # cleanup temporary thumb file if it was created by this function (i.e., not the user original)
     try:
-        os.remove(thumb_path)
+        if resolved_input_image:
+            # we copied user image to thumb_path; keep or remove as you prefer. we'll remove to keep cache clean
+            if os.path.exists(thumb_path):
+                os.remove(thumb_path)
     except OSError:
         pass
 
