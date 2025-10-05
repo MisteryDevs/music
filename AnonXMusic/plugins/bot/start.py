@@ -14,7 +14,7 @@ import config
 from AnonXMusic import app
 from AnonXMusic.misc import _boot_
 from AnonXMusic.plugins.sudo.sudoers import sudoers_list
-from AnonXMusic.utils import sys
+from AnonXMusic.utils import bot_sys_stats
 from AnonXMusic.utils.database import (
     add_served_chat,
     add_served_user,
@@ -193,7 +193,7 @@ async def start_pm(client, message: Message, _):
         out = private_panel(_)
         served_chats = len(await get_served_chats())
         served_users = len(await get_served_users())
-        UP, CPU, RAM, DISK = await sys()
+        UP, CPU, RAM, DISK = await bot_sys_stats()
 
         # Progress bar function call karo
         await progress_bar(message)
