@@ -59,27 +59,31 @@ def stream_markup_timer(_, chat_id, played, dur):
                 callback_data="GetTimer",
             )
         ],
-        [   
+        [
             InlineKeyboardButton(text="▷", callback_data=f"ADMIN Resume|{chat_id}"),
-            InlineKeyboardButton(text="II", callback_data=f"ADMIN Pause|{chat_id}"),
-            InlineKeyboardButton(text="↻", callback_data=f"ADMIN Replay|{chat_id}"),
+            InlineKeyboardButton(text="ʏᴛ-ᴀᴘɪ", callback_data=f"oapi"),
+            InlineKeyboardButton(text="II", callback_data=f"ADMIN Pause|{chat_id}")],
+        [   InlineKeyboardButton(text="↻", callback_data=f"ADMIN Replay|{chat_id}"),
             InlineKeyboardButton(text="‣‣I", callback_data=f"ADMIN Skip|{chat_id}"),
             InlineKeyboardButton(text="▢", callback_data=f"ADMIN Stop|{chat_id}"),
-        ],
+         ],
+        [InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data="close")],
     ]
-    
     return buttons
+
 
 
 def stream_markup(_, chat_id):
     buttons = [
         [
             InlineKeyboardButton(text="▷", callback_data=f"ADMIN Resume|{chat_id}"),
-            InlineKeyboardButton(text="II", callback_data=f"ADMIN Pause|{chat_id}"),
-            InlineKeyboardButton(text="↻", callback_data=f"ADMIN Replay|{chat_id}"),
+            InlineKeyboardButton(text="ʏᴛ-ᴀᴘɪ", callback_data=f"oapi"),
+            InlineKeyboardButton(text="II", callback_data=f"ADMIN Pause|{chat_id}")],
+        [   InlineKeyboardButton(text="↻", callback_data=f"ADMIN Replay|{chat_id}"),
             InlineKeyboardButton(text="‣‣I", callback_data=f"ADMIN Skip|{chat_id}"),
             InlineKeyboardButton(text="▢", callback_data=f"ADMIN Stop|{chat_id}"),
-        ],
+         ],
+        [InlineKeyboardButton(text=_["CLOSE_BUTTON"], callback_data="close")],
     ]
     return buttons
 
@@ -153,3 +157,50 @@ def slider_markup(_, videoid, user_id, query, query_type, channel, fplay):
         ],
     ]
     return buttons
+
+
+
+
+
+import sys
+import platform
+from time import time
+from datetime import datetime
+import pyrogram
+from pyrogram import filters
+from pyrogram.types import CallbackQuery
+from AnonXMusic import app  # apke bot ka app import
+
+# Pyrogram version
+pver = pyrogram.__version__
+
+# Bot start time (uptime ke liye)
+BOT_START_TIME = datetime.now()
+
+def get_uptime():
+    uptime = datetime.now() - BOT_START_TIME
+    hours, remainder = divmod(int(uptime.total_seconds()), 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"{hours}h {minutes}m {seconds}s"
+
+
+@app.on_callback_query(filters.regex("oapi"))
+async def show_bot_info(c: app, q: CallbackQuery):
+    start = time()
+    m = await c.send_message(q.message.chat.id, "🧾ᴀᴘɪ sᴛᴀᴛᴜs........")
+    delta_ping = (time() - start) * 1000
+    await m.delete()
+
+    # Short popup text (under 200 chars)
+    short_txt = f"""
+🧾ᴀᴘɪ sᴛᴀᴛᴜs
+
+ᴅʙ : ᴏɴʟɪɴᴇ
+ʀɪsʜᴜ ᴀᴘɪ : ʀᴇsᴘᴏɴsɪᴠᴇ
+ᴀᴘɪ ᴘɪɴɢ : {delta_ping:.2f} ms
+ᴀᴘɪ ᴜᴘᴛɪᴍᴇ : {get_uptime()}
+
+✅ ᴇᴠᴇʀʏᴛʜɪɴɢ ғɪɴᴇ
+"""
+
+    await q.answer(short_txt.strip(), show_alert=True)
