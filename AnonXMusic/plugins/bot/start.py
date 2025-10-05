@@ -102,11 +102,11 @@ async def progress_bar(message: Message):
     ]
 
     for step in progress:
-        await baby.edit_text(f"**{step}**")
+        await baby.edit_text(f"<b>{step}</b>")
         await asyncio.sleep(0.3)  # Adjust delay for smooth updates
 
     # Final message bhejo
-    await baby.edit_text("**❖ Jᴀʏ sʜʀᴇᴇ ʀᴀᴍ 🚩...**")
+    await baby.edit_text("<b>❖ Jᴀʏ sʜʀᴇᴇ ʀᴀᴍ 🚩...</b>")
     await asyncio.sleep(1)
     await baby.delete()
 
@@ -126,7 +126,7 @@ async def start_pm(client, message: Message, _):
                 random.choice(NEXIO_VD),
                 caption=_["help_1"].format(config.SUPPORT_CHAT),
                 reply_markup=keyboard,
-            )
+            ),
 
         elif name.startswith("sud"):
             await sudoers_list(client=client, message=message, _=_)
@@ -212,6 +212,7 @@ async def start_pm(client, message: Message, _):
                 served_chats,
             ),
             reply_markup=InlineKeyboardMarkup(out),
+has_spoiler=True,
         )
 
         if await is_on_off(2):
@@ -234,6 +235,7 @@ async def start_gp(client, message: Message, _):
         random.choice(NEXIO_VD),
         caption=_["start_1"].format(app.mention, get_readable_time(uptime)),
         reply_markup=InlineKeyboardMarkup(out),
+has_spoiler=True,
     )
     return await add_served_chat(message.chat.id)
 
