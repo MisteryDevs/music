@@ -5,8 +5,8 @@ from pyrogram.types import Message
 from pyrogram.enums import MessageEntityType
 from youtubesearchpython.__future__ import VideosSearch
 
-from AnonMusic.utils.database import is_on_off
-from AnonMusic.utils.formatters import time_to_seconds
+from AnonXMusic.utils.database import is_on_off
+from AnonXMusic.utils.formatters import time_to_seconds
 
 def time_to_seconds(time):
     stringt = str(time)
