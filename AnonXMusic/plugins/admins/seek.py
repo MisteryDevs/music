@@ -1,15 +1,33 @@
 from pyrogram import filters
-from pyrogram.types import Message, CallbackQuery
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
 from AnonXMusic import YouTube, app
 from AnonXMusic.core.call import Anony
 from AnonXMusic.misc import db
 from AnonXMusic.utils import AdminRightsCheck, seconds_to_min
-from AnonXMusic.utils.inline import close_markup
 from config import BANNED_USERS
 
+
 # -----------------------------
-# 🔹 Common Seek Function
+# 🔹 Close markup helper
+# -----------------------------
+def close_markup(_dict=None):
+    text = "❌ Close"
+    if _dict and "CLOSE_BUTTON" in _dict:
+        text = _dict["CLOSE_BUTTON"]
+    return InlineKeyboardMarkup([[InlineKeyboardButton(text=text, callback_data="close")]])
+
+
+# -----------------------------
+# 🔹 Admin check helper
+# -----------------------------
+async def is_admin(client, chat_id: int, user_id: int) -> bool:
+    member = await client.get_chat_member(chat_id, user_id)
+    return member.status in ["administrator", "creator"] or member.privileges is not None
+
+
+# -----------------------------
+# 🔹 Reusable seek function
 # -----------------------------
 async def do_seek(chat_id: int, skip: int, backward: bool = False):
     playing = db.get(chat_id)
@@ -32,17 +50,18 @@ async def do_seek(chat_id: int, skip: int, backward: bool = False):
         to_seek = duration_played + skip
         db[chat_id][0]["played"] = to_seek
 
-    # Adjust file path for YouTube / speed_path / index_
+    # Adjust file path
     if "vid_" in file_path:
         n, file_path = await YouTube.video(playing[0]["vidid"], True)
         if n == 0:
             return None, "❌ Stream error!"
-    check = (playing[0]).get("speed_path")
+    check = playing[0].get("speed_path")
     if check:
         file_path = check
     if "index_" in file_path:
         file_path = playing[0]["vidid"]
 
+    # Apply seek
     try:
         await Anony.seek_stream(
             chat_id,
@@ -58,7 +77,7 @@ async def do_seek(chat_id: int, skip: int, backward: bool = False):
 
 
 # -----------------------------
-# 🔹 Command Handler (/seek)
+# 🔹 Seek Command Handler
 # -----------------------------
 @app.on_message(
     filters.command(["seek", "cseek", "seekback", "cseekback"])
@@ -68,7 +87,7 @@ async def do_seek(chat_id: int, skip: int, backward: bool = False):
 @AdminRightsCheck
 async def seek_comm(cli, message: Message, _, chat_id):
     if len(message.command) == 1:
-        return await message.reply_text("❌ Specify the seconds to seek.")
+        return await message.reply_text("❌ Specify seconds to seek.")
 
     query = message.text.split(None, 1)[1].strip()
     if not query.isnumeric():
@@ -80,23 +99,26 @@ async def seek_comm(cli, message: Message, _, chat_id):
     mystic = await message.reply_text("⏳ Seeking...")
     to_seek, error = await do_seek(chat_id, skip, backward=backward)
     if error:
-        return await mystic.edit_text(error, reply_markup=close_markup({}))
+        return await mystic.edit_text(error, reply_markup=close_markup())
 
+    # Send live seek bar buttons
     await mystic.edit_text(
         f"⏩ Track seeked to: {seconds_to_min(to_seek)}",
-        reply_markup=close_markup({}),
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("<- 20s", callback_data=f"ADMIN Backward|{chat_id}"),
+                    InlineKeyboardButton("20s + >", callback_data=f"ADMIN Forward|{chat_id}"),
+                ],
+                [InlineKeyboardButton("❌ Close", callback_data="close")],
+            ]
+        ),
     )
 
 
 # -----------------------------
-# 🔹 Callback Handler (buttons)
+# 🔹 Callback Handler for Buttons
 # -----------------------------
-async def is_admin(client, chat_id: int, user_id: int) -> bool:
-    """Check if user is admin in chat"""
-    member = await client.get_chat_member(chat_id, user_id)
-    return member.status in ["administrator", "creator"] or member.privileges is not None
-
-
 @app.on_callback_query(filters.regex(r"^ADMIN (Forward|Backward)\|(\d+)"))
 async def seek_cb(client, cq: CallbackQuery):
     try:
@@ -118,5 +140,13 @@ async def seek_cb(client, cq: CallbackQuery):
     await cq.answer("✅ Seek successful!", show_alert=False)
     await cq.message.edit_text(
         f"⏩ Track seeked to: {seconds_to_min(to_seek)}",
-        reply_markup=close_markup({}),
+        reply_markup=InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton("<- 20s", callback_data=f"ADMIN Backward|{chat_id}"),
+                    InlineKeyboardButton("20s + >", callback_data=f"ADMIN Forward|{chat_id}"),
+                ],
+                [InlineKeyboardButton("❌ Close", callback_data="close")],
+            ]
+        ),
     )
