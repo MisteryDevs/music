@@ -1,4 +1,3 @@
-
 from pyrogram import filters
 from pyrogram.types import CallbackQuery
 
@@ -7,14 +6,22 @@ from AnonXMusic.core.call import Anony
 from AnonXMusic.misc import db
 from AnonXMusic.utils import seconds_to_min
 from AnonXMusic.utils.inline import close_markup
-from AnonXMusic.utils.decorators import AdminRightsCheck
+
+
+async def is_admin(client, chat_id: int, user_id: int) -> bool:
+    """Check if user is admin in chat"""
+    member = await client.get_chat_member(chat_id, user_id)
+    return member.privileges is not None or member.status in ("administrator", "creator")
 
 
 @app.on_callback_query(filters.regex(r"^ADMIN (Forward|Backward)\|(\-?\d+)$"))
-@AdminRightsCheck
 async def seek_cb(client, cq: CallbackQuery):
     action, chat_id = cq.data.split("|", 1)
     chat_id = int(chat_id)
+
+    # check admin rights
+    if not await is_admin(client, chat_id, cq.from_user.id):
+        return await cq.answer("⚠️ Only admins can control playback!", show_alert=True)
 
     # Playing data check
     playing = db.get(chat_id)
