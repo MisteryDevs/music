@@ -8,7 +8,6 @@ from AnonXMusic.utils import AdminRightsCheck, seconds_to_min
 from AnonXMusic.utils.inline import close_markup
 from config import BANNED_USERS
 
-
 # -----------------------------
 # 🔹 Common Seek Function
 # -----------------------------
@@ -22,7 +21,6 @@ async def do_seek(chat_id: int, skip: int, backward: bool = False):
     duration = playing[0]["dur"]
     file_path = playing[0]["file"]
 
-    # 🔹 New position calculation
     if backward:
         to_seek = max(duration_played - skip, 0)
         if to_seek <= 10:
@@ -34,7 +32,7 @@ async def do_seek(chat_id: int, skip: int, backward: bool = False):
         to_seek = duration_played + skip
         db[chat_id][0]["played"] = to_seek
 
-    # 🔹 Stream adjustments
+    # Adjust file path for YouTube / speed_path / index_
     if "vid_" in file_path:
         n, file_path = await YouTube.video(playing[0]["vidid"], True)
         if n == 0:
@@ -45,7 +43,6 @@ async def do_seek(chat_id: int, skip: int, backward: bool = False):
     if "index_" in file_path:
         file_path = playing[0]["vidid"]
 
-    # 🔹 Apply seek
     try:
         await Anony.seek_stream(
             chat_id,
@@ -71,23 +68,23 @@ async def do_seek(chat_id: int, skip: int, backward: bool = False):
 @AdminRightsCheck
 async def seek_comm(cli, message: Message, _, chat_id):
     if len(message.command) == 1:
-        return await message.reply_text(_["admin_20"])
+        return await message.reply_text("❌ Specify the seconds to seek.")
 
     query = message.text.split(None, 1)[1].strip()
     if not query.isnumeric():
-        return await message.reply_text(_["admin_21"])
+        return await message.reply_text("❌ Only numeric values allowed!")
 
     skip = int(query)
     backward = message.command[0] in ["seekback", "cseekback"]
 
-    mystic = await message.reply_text(_["admin_24"])
+    mystic = await message.reply_text("⏳ Seeking...")
     to_seek, error = await do_seek(chat_id, skip, backward=backward)
     if error:
-        return await mystic.edit_text(error, reply_markup=close_markup(_))
+        return await mystic.edit_text(error, reply_markup=close_markup({}))
 
     await mystic.edit_text(
-        text=_["admin_25"].format(seconds_to_min(to_seek), message.from_user.mention),
-        reply_markup=close_markup(_),
+        f"⏩ Track seeked to: {seconds_to_min(to_seek)}",
+        reply_markup=close_markup({}),
     )
 
 
@@ -97,19 +94,21 @@ async def seek_comm(cli, message: Message, _, chat_id):
 async def is_admin(client, chat_id: int, user_id: int) -> bool:
     """Check if user is admin in chat"""
     member = await client.get_chat_member(chat_id, user_id)
-    return member.privileges is not None or member.status in ("administrator", "creator")
+    return member.status in ["administrator", "creator"] or member.privileges is not None
 
 
-@app.on_callback_query(filters.regex(r"^ADMIN (Forward|Backward)\|(\-?\d+)$"))
+@app.on_callback_query(filters.regex(r"^ADMIN (Forward|Backward)\|(\d+)"))
 async def seek_cb(client, cq: CallbackQuery):
-    action, chat_id = cq.data.split("|", 1)
-    chat_id = int(chat_id)
+    try:
+        action, chat_id = cq.data.split("|")[:2]
+        chat_id = int(chat_id)
+    except:
+        return await cq.answer("Invalid callback!", show_alert=True)
 
-    # 🔹 Admin check
+    # Admin check
     if not await is_admin(client, chat_id, cq.from_user.id):
         return await cq.answer("⚠️ Only admins can control playback!", show_alert=True)
 
-    # 🔹 Perform seek
     backward = "Backward" in action
     to_seek, error = await do_seek(chat_id, 20, backward=backward)
 
